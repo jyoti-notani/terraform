@@ -4,6 +4,8 @@ day_1/learn-terraform-aws-instance/.terraform/
 
 day_2/learn-terraform-provider-versioning/.terraform/
 
+day_3/learn-state-migration/.terraform/
+
 # .tfstate files
 # *.tfstate
 # *.tfstate.*

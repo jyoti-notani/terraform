@@ -124,7 +124,8 @@ resource "aws_instance" "app_server" {
 
 
 ### Learnings:
-1. How to login to terraform cloud
+1. How to login to terraform cloud : https://learn.hashicorp.com/tutorials/terraform/cloud-login?in=terraform/certification-associate-tutorials
+
 2. Maintain a state in terraform cloud , if any variable is declared in tf file as follows:
 
 ~~~
@@ -136,11 +137,20 @@ variable "name_length" {
 
 if we create the same "name_length" in tf cloud variables and change the value. So after tf apply the new value will be allocated.
 
-3. Maintain a variable.tf file to create variables and refer in main file
+https://learn.hashicorp.com/tutorials/terraform/cloud-migrate?in=terraform/certification-associate-tutorials
 
-4. 
 
-5. 
+3. Maintain a variable.tf file to create variables and refer in main file : https://learn.hashicorp.com/tutorials/terraform/variables?in=terraform/certification-associate-tutorials
+
+
+4. Maintain output.tf for outputs: https://learn.hashicorp.com/tutorials/terraform/outputs?in=terraform/certification-associate-tutorials
+
+
+5. Query Resource : https://learn.hashicorp.com/tutorials/terraform/data-sources?in=terraform/certification-associate-tutorials
+
+
+6. Create resource dependecy : https://learn.hashicorp.com/tutorials/terraform/dependencies?in=terraform/certification-associate-tutorials
+
 
 
 ## Day 4:
@@ -199,3 +209,145 @@ backend "s3" {
 }
 ~~~
 
+For code details Refer: https://github.com/jyoti-notani/terraform/tree/master/day_4/learn-terraform-aws-instance
+
+## Day 5:
+1. Perform Dynamic Operations with Functions : https://learn.hashicorp.com/tutorials/terraform/functions?in=terraform/certification-associate-tutorials
+
+2. Manage Resources in Terraform State : https://learn.hashicorp.com/tutorials/terraform/state-cli?in=terraform/certification-associate-tutorials
+
+3. Import Terraform Configuration: https://learn.hashicorp.com/tutorials/terraform/state-import?in=terraform/certification-associate-tutorials
+
+4. Manage Resource Drift: https://learn.hashicorp.com/tutorials/terraform/resource-drift?in=terraform/certification-associate-tutorials
+
+5.Use Refresh-Only Mode to Sync Terraform State: https://learn.hashicorp.com/tutorials/terraform/refresh?in=terraform/certification-associate-tutorials
+
+
+### Day 6:
+1. Create s3 bucket named : trf-state-file to maintain state file of vpc and eks
+using in terraform.tf file
+~~~
+  backend "s3" {
+      bucket = "trf-state-file"
+      key = "vpc/terraform.tfstate"
+      region = "us-east-1"
+   }
+~~~
+
+2. Create VPC using terraform
+
+~~~
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "3.19.0"
+
+  name = "education-vpc"
+
+  cidr = "10.0.0.0/16"
+  azs  = slice(data.aws_availability_zones.available.names, 0, 3)
+
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  public_subnets  = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+
+  enable_nat_gateway   = true
+  single_nat_gateway   = true
+  enable_dns_hostnames = true
+
+  public_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                      = 1
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"             = 1
+  }
+}
+~~~
+
+3. Create EKS using terraform
+
+~~~
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "19.5.1"
+
+  cluster_name    = local.cluster_name
+  cluster_version = "1.24"
+
+  vpc_id= "${data.terraform_remote_state.vpc.outputs.vpc_id}"
+  subnet_ids= "${data.terraform_remote_state.vpc.outputs.vpc_private_subnets}"
+  cluster_endpoint_public_access = true
+
+  eks_managed_node_group_defaults = {
+    ami_type = "AL2_x86_64"
+
+  }
+
+  eks_managed_node_groups = {
+    one = {
+      name = "node-group-1"
+
+      instance_types = ["t2.micro"]
+
+      min_size     = 1
+      max_size     = 3
+      desired_size = 2
+    }
+
+    two = {
+      name = "node-group-2"
+
+      instance_types = ["t2.micro"]
+
+      min_size     = 1
+      max_size     = 2
+      desired_size = 1
+    }
+  }
+}
+~~~
+
+4. use Terraform State file of VPC/VNET as data source. 
+~~~
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    bucket = "trf-state-file"
+    key = "vpc/terraform.tfstate"
+    region = var.region
+   }
+}
+~~~
+
+5. use .tfvar or variable parameters to pass the variable value 
+
+~~~
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+~~~
+
+6. Save terraform State in their respective s3 bucket /Storage account
+
+~~~
+    backend "s3" {
+      bucket = "trf-state-file"
+      key = "eks/terraform.tfstate"
+      region = "us-east-1"
+   }
+
+       backend "s3" {
+      bucket = "trf-state-file"
+      key = "vpc/terraform.tfstate"
+      region = "us-east-1"
+   }
+~~~
+
+7. change one of the settings in VPC/VNET or EKS/AKS cluster directly and Refresh you current state using : 
+
+  terraform apply -refresh-only
+
+For code checkout : https://github.com/jyoti-notani/terraform/tree/master/day_6
